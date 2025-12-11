@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface Doctor {
   id: string;
@@ -51,6 +51,18 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({ onNaviga
 
   const selectedDoctorData = MOCK_DOCTORS.find(d => d.id === selectedDoctor);
 
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (showConfirmModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showConfirmModal]);
+
   // Calendar Helpers
   const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay();
@@ -88,6 +100,21 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({ onNaviga
     
     setSelectedDate(newDate);
     setSelectedTime(null); // Reset time when date changes
+  };
+
+  const handleNativeDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.valueAsDate) {
+      const utcDate = e.target.valueAsDate;
+      // Convert to local date to avoid timezone shifts
+      const localDate = new Date(utcDate.getUTCFullYear(), utcDate.getUTCMonth(), utcDate.getUTCDate());
+      
+      setCurrentMonth(new Date(localDate.getFullYear(), localDate.getMonth(), 1));
+      
+      if (!isPast(localDate) && hasAvailability(localDate)) {
+        setSelectedDate(localDate);
+        setSelectedTime(null);
+      }
+    }
   };
 
   const formatDate = (date: Date) => {
@@ -194,16 +221,33 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({ onNaviga
                
                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                  
-                 {/* Calendar Header */}
+                 {/* Calendar Header with Native Picker */}
                  <div className="flex items-center justify-between mb-6">
-                    <h4 className="font-heading font-bold text-xl text-slate-900">
-                      {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                    </h4>
+                    <div className="flex items-center gap-3">
+                      <h4 className="font-heading font-bold text-xl text-slate-900">
+                        {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                      </h4>
+                      <div className="relative group">
+                         <input 
+                           type="date" 
+                           onChange={handleNativeDateChange}
+                           className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                           min={new Date().toISOString().split('T')[0]}
+                         />
+                         <button className="flex items-center gap-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors border border-blue-100">
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                           </svg>
+                           Jump to Date
+                         </button>
+                      </div>
+                    </div>
+                    
                     <div className="flex gap-2">
-                      <button onClick={handlePrevMonth} className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors">
+                      <button onClick={handlePrevMonth} className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors border border-transparent hover:border-slate-200">
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                       </button>
-                      <button onClick={handleNextMonth} className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors">
+                      <button onClick={handleNextMonth} className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors border border-transparent hover:border-slate-200">
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                       </button>
                     </div>
@@ -219,7 +263,7 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({ onNaviga
                    <div className="grid grid-cols-7 gap-1 sm:gap-2">
                       {/* Empty slots for previous month */}
                       {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-                        <div key={`empty-${i}`} className="aspect-square"></div>
+                        <div key={`empty-${i}`} className="aspect-square bg-slate-50/30 rounded-lg"></div>
                       ))}
 
                       {/* Days */}
@@ -238,16 +282,36 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({ onNaviga
                             disabled={disabled || !available}
                             className={`
                               aspect-square rounded-xl flex flex-col items-center justify-center text-sm font-semibold relative transition-all duration-200
-                              ${isSelected ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 scale-105 z-10' : ''}
-                              ${!isSelected && !disabled && available ? 'hover:bg-blue-50 hover:text-blue-600 cursor-pointer bg-white border border-slate-100' : ''}
-                              ${disabled ? 'text-slate-300 cursor-not-allowed bg-slate-50/50' : ''}
-                              ${!disabled && !available ? 'text-slate-300 cursor-not-allowed bg-slate-50/50' : ''}
-                              ${isCurrentDay && !isSelected ? 'text-blue-600 ring-1 ring-blue-600' : ''}
+                              ${isSelected 
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 scale-105 z-10 border-blue-600' 
+                                : 'bg-white border-slate-100'
+                              }
+                              ${!isSelected && !disabled && available 
+                                ? 'hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 cursor-pointer border' 
+                                : ''
+                              }
+                              ${disabled 
+                                ? 'text-slate-300 cursor-not-allowed bg-slate-50 opacity-60 border-transparent' 
+                                : ''
+                              }
+                              ${!disabled && !available 
+                                ? 'text-slate-300 cursor-not-allowed bg-slate-50 opacity-60 border-transparent' 
+                                : ''
+                              }
+                              ${isCurrentDay && !isSelected 
+                                ? 'text-blue-600 ring-2 ring-blue-600/20 bg-blue-50/50' 
+                                : ''
+                              }
                             `}
                           >
                             <span>{day}</span>
+                            {/* Availability Dot */}
                             {!disabled && available && !isSelected && (
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 absolute bottom-2"></span>
+                            )}
+                            {/* Selected Checkmark */}
+                            {isSelected && (
+                               <svg className="w-3 h-3 absolute bottom-1.5 text-blue-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
                             )}
                           </button>
                         );
@@ -260,7 +324,7 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({ onNaviga
                     <div className="animate-fadeIn pt-6 border-t border-slate-100">
                       <div className="flex justify-between items-center mb-4">
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">
-                          Available Times for {selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          Available Times for <span className="text-slate-900">{selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                         </label>
                       </div>
                       <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
@@ -268,7 +332,7 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({ onNaviga
                             <button
                               key={time}
                               onClick={() => { setSelectedTime(time); setStep(3); }}
-                              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all ${selectedTime === time ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-blue-300'}`}
+                              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all ${selectedTime === time ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-105' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-blue-300'}`}
                             >
                               {time}
                             </button>
@@ -347,8 +411,14 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({ onNaviga
 
       {/* Confirmation Modal */}
       {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-slideUp">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-slideUp relative">
+                <button 
+                  onClick={() => setShowConfirmModal(false)}
+                  className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors z-10"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
                 <div className="p-6 border-b border-slate-100 bg-slate-50/50">
                     <h3 className="font-heading text-xl font-bold text-slate-900">Confirm Appointment</h3>
                     <p className="text-sm text-slate-500 mt-1">Please review the details below.</p>
@@ -356,31 +426,33 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({ onNaviga
                 <div className="p-6 space-y-4">
                     {/* Details Summary */}
                     <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                         <img src={selectedDoctorData?.image} className="w-12 h-12 rounded-full object-cover" alt="" />
+                         <img src={selectedDoctorData?.image} className="w-12 h-12 rounded-full object-cover border border-white shadow-sm" alt="" />
                          <div>
                              <p className="text-sm font-bold text-slate-900">{selectedDoctorData?.name}</p>
-                             <p className="text-xs text-slate-500">{selectedDoctorData?.specialty}</p>
+                             <p className="text-xs text-slate-500 font-medium">{selectedDoctorData?.specialty}</p>
                          </div>
                     </div>
                     
                     <div className="space-y-3 pt-2">
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-sm border-b border-slate-50 pb-2">
                             <span className="text-slate-500 font-medium">Date</span>
                             <span className="font-bold text-slate-900">{selectedDate ? formatDate(selectedDate) : ''}</span>
                         </div>
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-sm border-b border-slate-50 pb-2">
                             <span className="text-slate-500 font-medium">Time</span>
                             <span className="font-bold text-slate-900">{selectedTime}</span>
                         </div>
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-sm pb-2">
                             <span className="text-slate-500 font-medium">Consultation Fee</span>
                             <span className="font-bold text-emerald-600">$120.00</span>
                         </div>
                     </div>
                     
                     <div className="pt-2">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Reason</span>
-                        <p className="text-sm text-slate-700 mt-1 bg-slate-50 p-3 rounded-lg border border-slate-100 italic">"{reason}"</p>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Reason for Visit</span>
+                        <div className="mt-2 p-3 bg-blue-50/50 border border-blue-100 rounded-xl text-sm text-slate-700 italic">
+                          "{reason}"
+                        </div>
                     </div>
                 </div>
                 <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">

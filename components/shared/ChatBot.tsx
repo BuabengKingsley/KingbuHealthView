@@ -2,6 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { generateHealthResponse } from '../../services/geminiService';
 import { ChatMessage } from '../../types';
 
+// Helper to clean markdown asterisks from text
+const cleanText = (text: string) => {
+  return text.replace(/\*/g, '');
+};
+
 // Helper component to simulate typing effect
 const TypewriterText: React.FC<{ text: string }> = ({ text }) => {
   const [displayedText, setDisplayedText] = useState('');
@@ -105,6 +110,7 @@ export const ChatBot: React.FC = () => {
         {messages.map((msg, idx) => {
           // Check if this is the latest message and it's from the model to apply typewriter effect
           const isLatestModelMessage = idx === messages.length - 1 && msg.role === 'model';
+          const textToDisplay = cleanText(msg.text);
           
           return (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-slideUp`}>
@@ -120,9 +126,9 @@ export const ChatBot: React.FC = () => {
               }`}>
                 {/* Apply Typewriter effect only to the newest AI message */}
                 {isLatestModelMessage ? (
-                  <TypewriterText text={msg.text} />
+                  <TypewriterText text={textToDisplay} />
                 ) : (
-                  <div className="whitespace-pre-wrap markdown-content">{msg.text}</div>
+                  <div className="whitespace-pre-wrap markdown-content">{textToDisplay}</div>
                 )}
                 
                 <div className={`text-[10px] mt-2 text-right font-medium opacity-80 ${msg.role === 'user' ? 'text-blue-100' : 'text-slate-400'}`}>
