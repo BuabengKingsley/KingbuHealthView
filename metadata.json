@@ -1,0 +1,8 @@
+{
+  "name": "KingbuHealthView",
+  "description": "A comprehensive health application for UTI detection, patient-doctor interaction, and AI-powered health assistance.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
