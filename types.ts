@@ -10,15 +10,26 @@ export interface User {
   email: string;
   role: UserRole;
   avatarUrl?: string;
+  // Extended Profile
+  phone?: string;
+  gender?: string;
+  dateOfBirth?: string;
+  height?: string; // stored as string for input flexibility e.g. "5'11" or "180cm"
+  weight?: string;
+  bloodType?: string;
+  emergencyContact?: string;
 }
 
 export interface ScanResult {
-  id: string;
+  id: string | number;
   date: string;
-  imageUrl: string;
-  analysis: string;
+  time: string;
+  imageUrl?: string;
   severity: 'Low' | 'Medium' | 'High';
-  status: 'Pending' | 'Reviewed';
+  status: string;
+  riskColor: 'emerald' | 'amber' | 'red';
+  reviewStatus: 'Pending' | 'Reviewed';
+  details: string;
 }
 
 export interface Appointment {

@@ -11,7 +11,7 @@ interface Doctor {
 const MOCK_DOCTORS: Doctor[] = [
   {
     id: '1',
-    name: 'Dr. Amina Okeke',
+    name: 'Dr. Kojo Buabeng',
     specialty: 'General Practitioner',
     image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=200',
     availability: ['09:00 AM', '10:00 AM', '02:00 PM', '03:30 PM']
@@ -25,7 +25,7 @@ const MOCK_DOCTORS: Doctor[] = [
   },
   {
     id: '3',
-    name: 'Dr. Nia Mbeki',
+    name: 'Dr. Esi Eunice',
     specialty: 'Nephrologist',
     image: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&q=80&w=200',
     availability: ['08:30 AM', '12:00 PM', '02:30 PM']
@@ -395,7 +395,7 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({ onNaviga
               </div>
               <div className="flex justify-between items-start">
                 <span className="text-xs font-bold text-slate-500 uppercase">Consultation Fee</span>
-                <span className="text-sm font-semibold text-emerald-600 text-right">$120.00</span>
+                <span className="text-sm font-semibold text-emerald-600 text-right">120gh cedis</span>
               </div>
             </div>
 

@@ -77,12 +77,19 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, currentView, onN
           <div className="flex items-center gap-4">
             {user ? (
               <>
-                <div className="flex items-center gap-3 pl-6 border-l border-slate-200 h-8">
-                  <div className="h-9 w-9 rounded-full bg-slate-100 border border-white shadow-sm flex items-center justify-center text-blue-700 font-bold text-sm ring-2 ring-slate-50">
-                    {user.name.charAt(0)}
+                <div 
+                  onClick={() => onNavigate('profile')}
+                  className={`flex items-center gap-3 pl-6 border-l border-slate-200 h-8 cursor-pointer transition-opacity hover:opacity-80 group ${currentView === 'profile' ? 'opacity-100' : ''}`}
+                >
+                  <div className="h-9 w-9 rounded-full bg-slate-100 border border-white shadow-sm flex items-center justify-center font-bold text-sm ring-2 ring-slate-50 overflow-hidden relative">
+                    {user.avatarUrl ? (
+                      <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-blue-700">{user.name.charAt(0)}</span>
+                    )}
                   </div>
                   <div className="hidden md:flex flex-col">
-                    <span className="text-sm font-bold text-slate-800 leading-none">{user.name}</span>
+                    <span className={`text-sm font-bold leading-none ${currentView === 'profile' ? 'text-blue-700' : 'text-slate-800'}`}>{user.name}</span>
                     <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mt-1 font-heading">{user.role}</span>
                   </div>
                 </div>
@@ -111,7 +118,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, currentView, onN
              </>
            )}
            <MobileNavBtn icon="📰" label="News" active={currentView === 'news'} onClick={() => onNavigate('news')} />
-           <MobileNavBtn icon="💬" label="Chat" active={currentView === 'chat'} onClick={() => onNavigate('chat')} />
+           <MobileNavBtn icon="👤" label="Profile" active={currentView === 'profile'} onClick={() => onNavigate('profile')} />
         </div>
       )}
     </header>

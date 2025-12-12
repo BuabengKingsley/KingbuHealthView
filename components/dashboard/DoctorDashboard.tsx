@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { User } from '../../types';
 
 interface DashboardProps {
@@ -7,14 +7,68 @@ interface DashboardProps {
 }
 
 export const DoctorDashboard: React.FC<DashboardProps> = ({ user }) => {
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteName, setInviteName] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [isInviting, setIsInviting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const handleInvite = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsInviting(true);
+    // Simulate API call
+    setTimeout(() => {
+      setIsInviting(false);
+      setShowInviteModal(false);
+      const sentEmail = inviteEmail; // Capture email for message
+      setInviteName('');
+      setInviteEmail('');
+      
+      // Show custom success message
+      setSuccessMessage(`Invitation sent to ${sentEmail} successfully!`);
+      
+      // Auto-dismiss after 4 seconds
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 4000);
+    }, 1500);
+  };
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 animate-fadeIn space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 animate-fadeIn space-y-8 relative">
+      
+      {/* Success Toast Notification */}
+      {successMessage && (
+        <div className="fixed top-24 right-4 md:right-8 z-50 bg-emerald-600 text-white pl-4 pr-6 py-4 rounded-2xl shadow-2xl shadow-emerald-500/30 flex items-start gap-3 animate-slideUp max-w-sm border border-emerald-500/50 backdrop-blur-md">
+            <div className="bg-white/20 p-1.5 rounded-full mt-0.5 flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div>
+              <h4 className="font-heading font-bold text-sm">Success</h4>
+              <p className="text-xs text-emerald-100 font-medium mt-0.5 leading-relaxed">{successMessage}</p>
+            </div>
+            <button 
+              onClick={() => setSuccessMessage(null)} 
+              className="absolute top-2 right-2 p-1 text-emerald-200 hover:text-white hover:bg-emerald-700/50 rounded-full transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <div>
            <h1 className="font-heading text-3xl font-bold text-slate-900 tracking-tight">Dr. Dashboard</h1>
            <p className="text-slate-500 mt-1 font-medium">Overview of your patient activity.</p>
         </div>
-        <button className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all hover:-translate-y-0.5 flex items-center gap-2">
+        <button 
+          onClick={() => setShowInviteModal(true)}
+          className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+        >
           <span>+</span> Invite Patient
         </button>
       </div>
@@ -114,6 +168,72 @@ export const DoctorDashboard: React.FC<DashboardProps> = ({ user }) => {
           </table>
         </div>
       </div>
+
+      {/* Invite Modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fadeIn">
+           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-slideUp relative">
+              <button 
+                onClick={() => setShowInviteModal(false)}
+                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors z-10"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+              
+              <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                <h3 className="font-heading text-xl font-bold text-slate-900">Invite New Patient</h3>
+                <p className="text-sm text-slate-500 mt-1">Send a secure registration link via email.</p>
+              </div>
+
+              <form onSubmit={handleInvite} className="p-6 space-y-4">
+                 <div className="space-y-1.5">
+                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Patient Name</label>
+                   <input 
+                     type="text" 
+                     required
+                     value={inviteName}
+                     onChange={(e) => setInviteName(e.target.value)}
+                     className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                     placeholder="e.g. John Doe"
+                   />
+                 </div>
+                 <div className="space-y-1.5">
+                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Email Address</label>
+                   <input 
+                     type="email" 
+                     required
+                     value={inviteEmail}
+                     onChange={(e) => setInviteEmail(e.target.value)}
+                     className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                     placeholder="patient@example.com"
+                   />
+                 </div>
+                 
+                 <div className="pt-4 flex gap-3">
+                   <button 
+                     type="button" 
+                     onClick={() => setShowInviteModal(false)}
+                     className="flex-1 py-3 px-4 rounded-xl font-bold text-slate-600 hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-all"
+                   >
+                     Cancel
+                   </button>
+                   <button 
+                     type="submit" 
+                     disabled={isInviting}
+                     className="flex-1 py-3 px-4 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all flex justify-center items-center gap-2 disabled:opacity-70"
+                   >
+                     {isInviting ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                          Sending...
+                        </>
+                     ) : 'Send Invite'}
+                   </button>
+                 </div>
+              </form>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

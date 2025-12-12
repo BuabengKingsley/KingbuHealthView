@@ -1,46 +1,150 @@
-import React from 'react';
-import { User } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { User, ScanResult } from '../../types';
+import { jsPDF } from 'jspdf';
 
 interface DashboardProps {
   user: User;
   onNavigate: (view: string) => void;
+  scans: ScanResult[];
 }
 
-// Mock data for enhanced scan display
-const RECENT_SCANS = [
-  { 
-    id: 101, 
-    date: 'Oct 24, 2023', 
-    time: '09:30 AM', 
-    severity: 'Low', 
-    status: 'Normal Results', 
-    riskColor: 'emerald',
-    reviewStatus: 'Reviewed',
-    details: 'Leukocytes negative, Nitrites negative.'
-  },
-  { 
-    id: 102, 
-    date: 'Oct 20, 2023', 
-    time: '04:15 PM', 
-    severity: 'Medium', 
-    status: 'Monitor Closely', 
-    riskColor: 'amber',
-    reviewStatus: 'Pending',
-    details: 'Trace Leukocytes detected.'
-  },
-  { 
-    id: 103, 
-    date: 'Oct 15, 2023', 
-    time: '11:00 AM', 
-    severity: 'High', 
-    status: 'Action Recommended', 
-    riskColor: 'red',
-    reviewStatus: 'Reviewed',
-    details: 'Positive for Nitrites and Leukocytes.'
-  },
-];
+export const PatientDashboard: React.FC<DashboardProps> = ({ user, onNavigate, scans }) => {
+  const [selectedScan, setSelectedScan] = useState<ScanResult | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  
+  // Hydration State
+  const [hydrationCurrent, setHydrationCurrent] = useState(1250); // ml
+  const hydrationGoal = 2500; // ml
+  const [streakDays, setStreakDays] = useState(12); // Mock streak
+  const [showConfetti, setShowConfetti] = useState(false);
 
-export const PatientDashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (selectedScan) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedScan]);
+
+  const handleAddWater = () => {
+    setHydrationCurrent(prev => {
+        const newValue = prev + 250;
+        if (newValue >= hydrationGoal && prev < hydrationGoal) {
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 3000);
+            setStreakDays(s => s + 1); // Increment streak on goal completion (demo logic)
+        }
+        return newValue;
+    });
+  };
+
+  const hydrationPercentage = Math.min((hydrationCurrent / hydrationGoal) * 100, 100);
+
+  const handleDownloadPDF = () => {
+    if (!selectedScan) return;
+    setIsDownloading(true);
+
+    try {
+      const doc = new jsPDF();
+
+      // Branding Header
+      doc.setFillColor(240, 247, 255); // blue-50
+      doc.rect(0, 0, 210, 40, 'F');
+      
+      doc.setFontSize(22);
+      doc.setTextColor(0, 111, 238); // blue-600
+      doc.setFont('helvetica', 'bold');
+      doc.text("KingbuHealthView", 20, 25);
+
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139); // slate-500
+      doc.setFont('helvetica', 'normal');
+      doc.text("AI-Powered Medical Analysis", 20, 32);
+
+      // Report Title
+      doc.setFontSize(18);
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.setFont('helvetica', 'bold');
+      doc.text("Scan Analysis Report", 20, 60);
+
+      // Line Separator
+      doc.setDrawColor(226, 232, 240); // slate-200
+      doc.line(20, 65, 190, 65);
+
+      // Patient & Scan Info
+      doc.setFontSize(11);
+      doc.setTextColor(71, 85, 105); // slate-600
+      
+      let yPos = 80;
+      doc.setFont('helvetica', 'bold');
+      doc.text("Patient Name:", 20, yPos);
+      doc.setFont('helvetica', 'normal');
+      doc.text(user.name, 60, yPos);
+      
+      yPos += 10;
+      doc.setFont('helvetica', 'bold');
+      doc.text("Report ID:", 20, yPos);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`#${Number(selectedScan.id) + 200}`, 60, yPos);
+
+      yPos += 10;
+      doc.setFont('helvetica', 'bold');
+      doc.text("Date & Time:", 20, yPos);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${selectedScan.date} at ${selectedScan.time}`, 60, yPos);
+
+      // Risk Assessment Box
+      yPos += 20;
+      doc.setFillColor(248, 250, 252); // slate-50
+      doc.setDrawColor(226, 232, 240); // slate-200
+      doc.roundedRect(20, yPos, 170, 35, 3, 3, 'FD');
+
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.text("Risk Assessment", 30, yPos + 12);
+
+      doc.setFontSize(14);
+      const color = selectedScan.riskColor === 'red' ? [220, 38, 38] : selectedScan.riskColor === 'amber' ? [217, 119, 6] : [5, 150, 105];
+      doc.setTextColor(color[0], color[1], color[2]);
+      doc.text(`${selectedScan.severity} Risk`, 30, yPos + 25);
+
+      // Analysis Details
+      yPos += 55;
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.text("Clinical Findings", 20, yPos);
+
+      yPos += 10;
+      doc.setFontSize(10);
+      doc.setTextColor(51, 65, 85); // slate-700
+      doc.setFont('helvetica', 'normal');
+      
+      const fullDetails = `${selectedScan.details}\n\nBased on the colorimetric analysis of the reagent pads, the sample indicates ${selectedScan.severity === 'Low' ? 'normal parameters' : 'potential abnormalities'} requiring further review.\n\nStatus: ${selectedScan.status}\nDoctor Review: ${selectedScan.reviewStatus}`;
+      const splitText = doc.splitTextToSize(fullDetails, 170);
+      doc.text(splitText, 20, yPos);
+
+      // Disclaimer Footer
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184); // slate-400
+      doc.text("DISCLAIMER: This report is generated by KingbuHealthView AI for informational purposes only. It does not constitute a definitive medical diagnosis. Please consult a qualified healthcare provider for proper testing and clinical advice.", 20, 280, { maxWidth: 170 });
+
+      // Save
+      doc.save(`KingbuHealth_Report_${selectedScan.id}_${selectedScan.date.replace(/,/g, '').replace(/\s/g, '_')}.pdf`);
+
+    } catch (err) {
+      console.error("PDF Generation failed:", err);
+      alert("Failed to generate PDF. Please try again.");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 animate-fadeIn">
       {/* Header Section */}
@@ -145,7 +249,7 @@ export const PatientDashboard: React.FC<DashboardProps> = ({ user, onNavigate })
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Dedicated Recent Scans Section */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-full">
           <div className="px-6 py-5 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50 backdrop-blur-sm">
              <div>
                 <h3 className="font-heading font-bold text-slate-900 text-lg">Recent UTI Scan Results</h3>
@@ -166,7 +270,7 @@ export const PatientDashboard: React.FC<DashboardProps> = ({ user, onNavigate })
           </div>
           
           <div className="divide-y divide-slate-50">
-            {RECENT_SCANS.map((scan) => (
+            {scans.map((scan) => (
               <div key={scan.id} className="p-6 hover:bg-slate-50 transition-colors group cursor-default">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6">
                   
@@ -181,13 +285,14 @@ export const PatientDashboard: React.FC<DashboardProps> = ({ user, onNavigate })
                     </div>
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-heading font-bold text-slate-900 text-base">UTI Test Analysis #{scan.id + 200}</h4>
-                        {scan.date === 'Oct 24, 2023' && (
+                        <h4 className="font-heading font-bold text-slate-900 text-base">UTI Test Analysis #{Number(scan.id) + 200}</h4>
+                        {/* Show LATEST tag for the first item */}
+                        {scan.id === scans[0].id && (
                           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">LATEST</span>
                         )}
                       </div>
                       <p className="text-sm text-slate-500 font-medium">{scan.date} • {scan.time}</p>
-                      <p className="text-sm text-slate-600 mt-2 leading-relaxed max-w-md">{scan.details}</p>
+                      <p className="text-sm text-slate-600 mt-2 leading-relaxed max-w-md line-clamp-2">{scan.details}</p>
                     </div>
                   </div>
 
@@ -234,7 +339,10 @@ export const PatientDashboard: React.FC<DashboardProps> = ({ user, onNavigate })
                         </div>
                      </div>
                      
-                     <button className="flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors group/btn bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl w-full sm:w-auto justify-center border border-blue-100">
+                     <button 
+                        onClick={() => setSelectedScan(scan)}
+                        className="flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors group/btn bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl w-full sm:w-auto justify-center border border-blue-100"
+                     >
                        View Analysis
                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 transition-transform group-hover/btn:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                      </button>
@@ -245,32 +353,179 @@ export const PatientDashboard: React.FC<DashboardProps> = ({ user, onNavigate })
           </div>
         </div>
 
-        {/* Hydration Widget */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
-           <div className="px-6 py-5 border-b border-slate-50 bg-slate-50/50">
-            <h3 className="font-heading font-bold text-slate-900">Hydration Tracker</h3>
-          </div>
-          <div className="p-6 flex flex-col items-center justify-center flex-1">
-            <div className="relative h-44 w-44 mx-auto mb-6">
-              <svg className="h-full w-full transform -rotate-90" viewBox="0 0 36 36">
-                <path className="text-slate-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-                <path className="text-blue-500 drop-shadow-lg filter" strokeDasharray="60, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center flex-col">
-                 <span className="font-heading text-4xl font-extrabold text-slate-900">1.2<span className="text-lg text-slate-500 font-bold">L</span></span>
-                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Daily Goal</span>
+        {/* Right Column: Hydration & Education */}
+        <div className="space-y-6">
+          {/* Hydration Widget */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col relative">
+            {showConfetti && (
+                <div className="absolute inset-0 pointer-events-none z-20 flex items-center justify-center">
+                    <div className="text-6xl animate-bounce">🎉</div>
+                </div>
+            )}
+            <div className="px-6 py-5 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
+              <h3 className="font-heading font-bold text-slate-900">Hydration</h3>
+              <div className="flex items-center gap-1 bg-orange-50 px-2 py-1 rounded-lg border border-orange-100">
+                  <span className="text-orange-500">🔥</span>
+                  <span className="text-xs font-bold text-orange-700">{streakDays} Day Streak</span>
               </div>
             </div>
-            <div className="w-full space-y-3">
-              <button className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                Add 250ml
-              </button>
-              <p className="text-center text-xs text-slate-400 font-medium">Keep up the good work!</p>
+            <div className="p-6 flex flex-col items-center justify-center flex-1">
+              <div className="relative h-44 w-44 mx-auto mb-6">
+                <svg className="h-full w-full transform -rotate-90" viewBox="0 0 36 36">
+                  {/* Background Circle */}
+                  <path className="text-slate-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                  {/* Progress Circle */}
+                  <path 
+                      className={`drop-shadow-lg filter transition-all duration-1000 ease-out ${hydrationPercentage >= 100 ? 'text-emerald-500' : 'text-blue-500'}`} 
+                      strokeDasharray={`${hydrationPercentage}, 100`} 
+                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="2.5" 
+                      strokeLinecap="round"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center flex-col">
+                  <span className="font-heading text-4xl font-extrabold text-slate-900">
+                    {(hydrationCurrent / 1000).toFixed(1).replace('.0', '')}
+                    <span className="text-lg text-slate-500 font-bold">L</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                    of {(hydrationGoal / 1000).toFixed(1)}L Goal
+                  </span>
+                </div>
+              </div>
+              <div className="w-full space-y-3">
+                <button 
+                  onClick={handleAddWater}
+                  className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  Add 250ml
+                </button>
+                <p className="text-center text-xs text-slate-400 font-medium">
+                   {hydrationPercentage >= 100 ? "Goal reached! Amazing work! 💧" : "Keep up the good work!"}
+                </p>
+              </div>
             </div>
+          </div>
+
+          {/* Educational Video Widget */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+             <div className="px-6 py-5 border-b border-slate-50 bg-slate-50/50">
+               <h3 className="font-heading font-bold text-slate-900 flex items-center gap-2">
+                 <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                 Public Health Education
+               </h3>
+             </div>
+             {/* Updated Container with Aspect Ratio and Valid Video ID */}
+             <div className="relative w-full aspect-video bg-slate-900 group">
+               <iframe 
+                 className="absolute inset-0 w-full h-full"
+                 src="https://www.youtube.com/embed/NOqxTNqUV6k" 
+                 title="Health News - Good Morning America"
+                 frameBorder="0"
+                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                 allowFullScreen
+               ></iframe>
+             </div>
+             <div className="p-5 bg-purple-50/30">
+               <h4 className="font-bold text-slate-800 text-sm mb-1">Health Insights</h4>
+               <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                 <span className="font-bold text-purple-600">Featured Segment:</span> Catch up on the latest health discussions and expert advice featured on Good Morning America.
+               </p>
+             </div>
           </div>
         </div>
       </div>
+
+      {/* Analysis Detail Modal */}
+      {selectedScan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-slideUp relative">
+                <button 
+                    onClick={() => setSelectedScan(null)}
+                    className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors z-10"
+                >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+                
+                <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                    <h3 className="font-heading text-xl font-bold text-slate-900 flex items-center gap-2">
+                        Scan Analysis #{Number(selectedScan.id) + 200}
+                        <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                            selectedScan.riskColor === 'red' ? 'bg-red-50 text-red-700 border-red-100' :
+                            selectedScan.riskColor === 'amber' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                            'bg-emerald-50 text-emerald-700 border-emerald-100'
+                        }`}>
+                            {selectedScan.severity} Risk
+                        </span>
+                    </h3>
+                    <p className="text-sm text-slate-500 mt-1">{selectedScan.date} at {selectedScan.time}</p>
+                </div>
+
+                <div className="p-6 space-y-6">
+                    {/* Visual Representation (Mock Strip) */}
+                    <div className="flex gap-2 justify-center mb-6">
+                        {[1,2,3,4,5].map(i => (
+                            <div key={i} className={`w-8 h-12 rounded-md shadow-sm border border-slate-200 ${
+                                selectedScan.severity === 'High' && i > 2 ? 'bg-purple-400' : 
+                                selectedScan.severity === 'Medium' && i > 3 ? 'bg-amber-300' :
+                                'bg-yellow-100'
+                            }`}></div>
+                        ))}
+                    </div>
+
+                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">AI Findings</h4>
+                        <p className="text-slate-800 text-sm leading-relaxed font-medium">
+                            {selectedScan.details}
+                        </p>
+                        <p className="text-slate-600 text-sm leading-relaxed mt-2">
+                        Based on the colorimetric analysis of the reagent pads, the sample indicates {selectedScan.severity === 'Low' ? 'normal parameters' : 'potential abnormalities'}.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="p-3 border border-slate-100 rounded-xl">
+                            <span className="text-xs text-slate-400 font-bold block mb-1">Status</span>
+                            <span className="text-sm font-bold text-slate-800">{selectedScan.status}</span>
+                        </div>
+                        <div className="p-3 border border-slate-100 rounded-xl">
+                            <span className="text-xs text-slate-400 font-bold block mb-1">Doctor Review</span>
+                            <span className={`text-sm font-bold ${selectedScan.reviewStatus === 'Pending' ? 'text-amber-600' : 'text-emerald-600'}`}>{selectedScan.reviewStatus}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">
+                    <button 
+                        onClick={handleDownloadPDF}
+                        disabled={isDownloading}
+                        className="flex-1 py-3 px-4 rounded-xl font-bold text-slate-600 hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 transition-all text-sm flex items-center justify-center gap-2"
+                    >
+                        {isDownloading ? (
+                           <>
+                             <svg className="animate-spin h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                             Generating...
+                           </>
+                        ) : (
+                           <>
+                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                             Download PDF
+                           </>
+                        )}
+                    </button>
+                    <button 
+                        onClick={() => setSelectedScan(null)}
+                        className="flex-1 py-3 px-4 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all text-sm"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };

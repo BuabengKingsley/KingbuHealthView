@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { analyzeUTIScan, analyzeUTISymptoms } from '../../services/geminiService';
+import { ScanResult } from '../../types';
 
 type TabMode = 'scan' | 'manual';
 
@@ -12,7 +13,60 @@ interface SymptomAnalysisResult {
   error?: string;
 }
 
-export const UTIScanner: React.FC = () => {
+interface UTIScannerProps {
+  onSaveScan?: (scan: ScanResult) => void;
+}
+
+const DisclaimerBox: React.FC = () => (
+  <div className="mt-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl">
+    <div className="flex">
+      <div className="flex-shrink-0">
+        <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+        </svg>
+      </div>
+      <div className="ml-3">
+        <p className="text-sm text-amber-700 font-medium">
+          Medical Disclaimer: This AI analysis is for informational purposes only and does not constitute a medical diagnosis. 
+          Always consult a healthcare professional for accurate testing and advice.
+        </p>
+      </div>
+    </div>
+  </div>
+);
+
+const InfoTooltip: React.FC<{ text: string }> = ({ text }) => (
+  <div className="relative group ml-2 inline-block">
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 text-center shadow-lg">
+      {text}
+      <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+    </div>
+  </div>
+);
+
+interface OptionButtonProps {
+  selected: boolean;
+  onClick: () => void;
+  label: string;
+}
+
+const OptionButton: React.FC<OptionButtonProps> = ({ selected, onClick, label }) => (
+  <button
+    onClick={onClick}
+    className={`py-3 px-4 rounded-xl text-sm font-semibold border transition-all ${
+      selected 
+        ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm ring-1 ring-blue-500 font-bold' 
+        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+    }`}
+  >
+    {label}
+  </button>
+);
+
+export const UTIScanner: React.FC<UTIScannerProps> = ({ onSaveScan }) => {
   const [activeTab, setActiveTab] = useState<TabMode>('scan');
   
   // Image Scan State
@@ -28,10 +82,16 @@ export const UTIScanner: React.FC = () => {
     color: 'Pale Yellow',
     backPain: 'No',
     fever: 'No',
-    visibleBlood: 'No'
+    visibleBlood: 'No',
+    nausea: 'No',
+    abdominalPain: 'No',
+    smell: 'Normal'
   });
   const [isAnalyzingSymptoms, setIsAnalyzingSymptoms] = useState(false);
   const [symptomResult, setSymptomResult] = useState<SymptomAnalysisResult | null>(null);
+
+  // Share State
+  const [isSharing, setIsSharing] = useState(false);
 
   // --- Image Handlers ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,6 +151,8 @@ export const UTIScanner: React.FC = () => {
 
   // --- Share Handler ---
   const handleShareResult = async (content: string, title: string) => {
+    if (isSharing) return;
+
     const shareData = {
       title: title,
       text: `KingbuHealthView Result:\n\n${content}\n\nDisclaimer: AI-generated analysis. Consult a doctor.`,
@@ -98,9 +160,15 @@ export const UTIScanner: React.FC = () => {
 
     if (navigator.share) {
       try {
+        setIsSharing(true);
         await navigator.share(shareData);
       } catch (err) {
-        console.error('Error sharing:', err);
+        // Ignore AbortError (user cancelled)
+        if ((err as Error).name !== 'AbortError') {
+             console.error('Error sharing:', err);
+        }
+      } finally {
+        setIsSharing(false);
       }
     } else {
       try {
@@ -110,6 +178,68 @@ export const UTIScanner: React.FC = () => {
         console.error('Failed to copy:', err);
       }
     }
+  };
+
+  const handleSaveToDashboard = () => {
+    if (!imageResult || !onSaveScan) return;
+
+    // Simple heuristic to determine risk from text
+    const text = imageResult.toLowerCase();
+    let severity: 'Low' | 'Medium' | 'High' = 'Low';
+    let riskColor: 'emerald' | 'amber' | 'red' = 'emerald';
+    let status = 'Normal Results';
+
+    if (text.includes('high') || text.includes('positive') || text.includes('infection') || text.includes('seek medical')) {
+      severity = 'High';
+      riskColor = 'red';
+      status = 'Action Recommended';
+    } else if (text.includes('trace') || text.includes('monitor') || text.includes('unclear')) {
+      severity = 'Medium';
+      riskColor = 'amber';
+      status = 'Monitor Closely';
+    }
+
+    const newScan: ScanResult = {
+      id: Date.now(),
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      severity,
+      status,
+      riskColor,
+      reviewStatus: 'Pending',
+      details: imageResult.substring(0, 150) + (imageResult.length > 150 ? '...' : ''),
+      imageUrl: selectedImage || undefined
+    };
+
+    onSaveScan(newScan);
+  };
+
+  // Helper logic to analyze the result text for UI presentation
+  const getAnalysisSummary = (text: string) => {
+    const lower = text.toLowerCase();
+    const isPositive = lower.includes('positive') || lower.includes('high') || lower.includes('abnormal') || lower.includes('infection');
+    const isTrace = lower.includes('trace') || lower.includes('monitor') || lower.includes('unclear');
+    
+    // Extract keywords found
+    const tags = [];
+    if (lower.includes('leukocytes')) tags.push('Leukocytes');
+    if (lower.includes('nitrites')) tags.push('Nitrites');
+    if (lower.includes('ph')) tags.push('pH');
+    if (lower.includes('blood')) tags.push('Blood');
+    if (lower.includes('protein')) tags.push('Protein');
+
+    return {
+      title: isPositive ? "Attention Required" : isTrace ? "Monitor Closely" : "Normal Parameters",
+      colorClass: isPositive ? "bg-amber-500 text-white" : isTrace ? "bg-blue-500 text-white" : "bg-emerald-500 text-white",
+      bgClass: isPositive ? "bg-amber-50 border-amber-100" : isTrace ? "bg-blue-50 border-blue-100" : "bg-emerald-50 border-emerald-100",
+      textClass: isPositive ? "text-amber-700" : isTrace ? "text-blue-700" : "text-emerald-700",
+      statusIcon: isPositive 
+        ? <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+        : isTrace 
+          ? <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          : <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+      tags
+    };
   };
 
   return (
@@ -206,30 +336,94 @@ export const UTIScanner: React.FC = () => {
                 </div>
               )}
 
-              {imageResult && (
-                <div className="animate-fadeIn mt-8 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-                  <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex justify-between items-center">
-                     <h3 className="font-heading text-lg font-bold text-white flex items-center gap-2">
-                       <svg className="w-5 h-5 text-blue-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                       Scan Results
-                     </h3>
-                     <button 
-                       onClick={() => handleShareResult(imageResult, 'UTI Scan Result')}
-                       className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors backdrop-blur-sm"
-                       title="Share Result"
-                     >
-                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
-                       Share
-                     </button>
-                  </div>
-                  <div className="p-8">
-                    <div className="prose prose-blue prose-sm max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap">
-                      {imageResult}
+              {imageResult && (() => {
+                const summary = getAnalysisSummary(imageResult);
+                return (
+                  <div className="animate-slideUp mt-8 rounded-3xl overflow-hidden shadow-xl shadow-slate-200 border border-slate-200 bg-white">
+                    {/* Dynamic Status Header */}
+                    <div className={`${summary.colorClass} px-8 py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4`}>
+                       <div className="flex items-center gap-4">
+                         <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md shadow-inner">
+                           {summary.statusIcon}
+                         </div>
+                         <div>
+                            <h3 className="font-heading text-xl font-bold tracking-tight">{summary.title}</h3>
+                            <p className="text-white/80 text-sm font-medium mt-0.5">
+                              Analyzed on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            </p>
+                         </div>
+                       </div>
+                       <div className="flex flex-wrap gap-2">
+                          {summary.tags.map(tag => (
+                            <span key={tag} className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-lg text-xs font-bold border border-white/10 shadow-sm">
+                              {tag} Checked
+                            </span>
+                          ))}
+                       </div>
                     </div>
-                    <DisclaimerBox />
+
+                    <div className="p-8">
+                       <div className="flex flex-col lg:flex-row gap-8">
+                          {/* Main Text Content */}
+                          <div className="flex-1">
+                             <h4 className="font-heading font-bold text-slate-900 mb-4 flex items-center gap-2">
+                               <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                               Detailed Findings
+                             </h4>
+                             <div className={`prose prose-sm max-w-none p-6 rounded-2xl border ${summary.bgClass} ${summary.textClass} leading-relaxed font-medium whitespace-pre-wrap`}>
+                               {imageResult}
+                             </div>
+                          </div>
+
+                          {/* Sidebar Actions */}
+                          <div className="w-full lg:w-72 space-y-4">
+                             <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100">
+                               <h5 className="font-bold text-slate-900 text-sm mb-4">Recommended Actions</h5>
+                               <div className="space-y-3">
+                                 {onSaveScan && (
+                                   <button 
+                                     onClick={handleSaveToDashboard}
+                                     className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-3 px-4 rounded-xl shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5"
+                                   >
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                                      Save to Record
+                                   </button>
+                                 )}
+                                 <button 
+                                   onClick={() => handleShareResult(imageResult, 'UTI Scan Result')}
+                                   disabled={isSharing}
+                                   className="w-full flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-sm font-bold py-3 px-4 rounded-xl transition-all"
+                                 >
+                                    {isSharing ? (
+                                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-500 border-t-transparent"></div>
+                                    ) : (
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                                    )}
+                                    Share with Doctor
+                                 </button>
+                               </div>
+                             </div>
+                             
+                             <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm">
+                               <div className="flex items-start gap-3">
+                                 <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                 </div>
+                                 <p className="text-xs text-slate-500 leading-relaxed">
+                                   Results are saved securely. You can review past scans in your dashboard at any time.
+                                 </p>
+                               </div>
+                             </div>
+                          </div>
+                       </div>
+                       
+                       <div className="mt-8 border-t border-slate-100 pt-6">
+                         <DisclaimerBox />
+                       </div>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           )}
 
@@ -361,6 +555,66 @@ export const UTIScanner: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Question 7: Nausea/Vomiting */}
+                  <div>
+                    <div className="flex items-center mb-2">
+                      <label className="block text-sm font-bold text-slate-700">Nausea or Vomiting?</label>
+                      <InfoTooltip text="Nausea can be a sign that the infection is affecting your kidneys." />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                       <OptionButton 
+                          selected={symptoms.nausea === 'Yes'} 
+                          onClick={() => handleSymptomChange('nausea', 'Yes')} 
+                          label="Yes" 
+                        />
+                       <OptionButton 
+                          selected={symptoms.nausea === 'No'} 
+                          onClick={() => handleSymptomChange('nausea', 'No')} 
+                          label="No" 
+                        />
+                    </div>
+                  </div>
+
+                  {/* Question 8: Abdominal Pain */}
+                  <div>
+                    <div className="flex items-center mb-2">
+                      <label className="block text-sm font-bold text-slate-700">Lower Abdominal Pain?</label>
+                      <InfoTooltip text="Pain or pressure in the lower abdomen or pelvic area is common with bladder infections." />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                       <OptionButton 
+                          selected={symptoms.abdominalPain === 'Yes'} 
+                          onClick={() => handleSymptomChange('abdominalPain', 'Yes')} 
+                          label="Yes" 
+                        />
+                       <OptionButton 
+                          selected={symptoms.abdominalPain === 'No'} 
+                          onClick={() => handleSymptomChange('abdominalPain', 'No')} 
+                          label="No" 
+                        />
+                    </div>
+                  </div>
+
+                  {/* Question 9: Smell */}
+                  <div className="md:col-span-2">
+                    <div className="flex items-center mb-2">
+                      <label className="block text-sm font-bold text-slate-700">Urine Odor?</label>
+                      <InfoTooltip text="A strong, foul, or fishy smell can indicate the presence of bacteria." />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 md:w-1/2">
+                       <OptionButton 
+                          selected={symptoms.smell === 'Strong / Foul'} 
+                          onClick={() => handleSymptomChange('smell', 'Strong / Foul')} 
+                          label="Strong / Foul" 
+                        />
+                       <OptionButton 
+                          selected={symptoms.smell === 'Normal'} 
+                          onClick={() => handleSymptomChange('smell', 'Normal')} 
+                          label="Normal" 
+                        />
+                    </div>
+                  </div>
+
                 </div>
 
                 <div className="mt-10 flex justify-center">
@@ -389,10 +643,15 @@ export const UTIScanner: React.FC = () => {
                          `Risk Level: ${symptomResult.riskLevel}\nScore: ${symptomResult.riskScore}%\nAnalysis: ${symptomResult.analysis}`, 
                          'Symptom Assessment'
                        )}
-                       className="flex items-center gap-2 text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                       disabled={isSharing}
+                       className={`flex items-center gap-2 text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${isSharing ? 'opacity-50 cursor-not-allowed' : ''}`}
                        title="Share Result"
                      >
-                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                       {isSharing ? (
+                         <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-600 border-t-transparent"></div>
+                       ) : (
+                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                       )}
                        Share
                      </button>
                   </div>
@@ -492,45 +751,3 @@ export const UTIScanner: React.FC = () => {
     </div>
   );
 };
-
-// Helper Components
-const InfoTooltip: React.FC<{ text: string }> = ({ text }) => (
-  <div className="group relative inline-block ml-2 align-middle">
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400 hover:text-blue-500 cursor-help transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 text-center font-normal leading-relaxed shadow-lg pointer-events-none">
-      {text}
-      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
-    </div>
-  </div>
-);
-
-const OptionButton: React.FC<{ selected: boolean; onClick: () => void; label: string }> = ({ selected, onClick, label }) => (
-  <button 
-    onClick={onClick}
-    className={`py-3 px-4 rounded-xl text-sm font-semibold border transition-all ${
-      selected 
-      ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm ring-1 ring-blue-500 font-bold' 
-      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-    }`}
-  >
-    {label}
-  </button>
-);
-
-const DisclaimerBox: React.FC = () => (
-  <div className="mt-8 flex gap-4 p-4 bg-amber-50 border border-amber-100 rounded-xl">
-    <div className="flex-shrink-0">
-      <svg className="h-6 w-6 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-      </svg>
-    </div>
-    <div>
-      <h3 className="text-sm font-bold text-amber-800">Medical Disclaimer</h3>
-      <p className="mt-1 text-sm text-amber-700 leading-snug font-medium">
-        This analysis is generated by AI for informational purposes only. It is not a clinical diagnosis. Please consult a qualified healthcare provider for proper testing and treatment.
-      </p>
-    </div>
-  </div>
-);
