@@ -395,7 +395,7 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({ onNaviga
               </div>
               <div className="flex justify-between items-start">
                 <span className="text-xs font-bold text-slate-500 uppercase">Consultation Fee</span>
-                <span className="text-sm font-semibold text-emerald-600 text-right">120gh cedis</span>
+                <span className="text-sm font-semibold text-emerald-600 text-right">GH₵ 120.00</span>
               </div>
             </div>
 
@@ -444,7 +444,7 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({ onNaviga
                         </div>
                         <div className="flex justify-between text-sm pb-2">
                             <span className="text-slate-500 font-medium">Consultation Fee</span>
-                            <span className="font-bold text-emerald-600">$120.00</span>
+                            <span className="font-bold text-emerald-600">GH₵ 120.00</span>
                         </div>
                     </div>
                     

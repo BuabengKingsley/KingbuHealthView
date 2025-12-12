@@ -8,6 +8,27 @@ interface DashboardProps {
   scans: ScanResult[];
 }
 
+const EDUCATIONAL_VIDEOS = [
+  {
+    id: 'tPi99h1DtbU',
+    title: 'Understanding UTIs',
+    channel: 'Mayo Clinic',
+    description: 'Expert insights on Urinary Tract Infection symptoms and prevention strategies.'
+  },
+  {
+    id: '9pDyLODh_bM', 
+    title: 'Preventing Infections',
+    channel: 'Cleveland Clinic',
+    description: 'Key lifestyle changes to reduce the risk of recurring infections.'
+  },
+  {
+    id: 'NOqxTNqUV6k',
+    title: 'General Wellness',
+    channel: 'Health News',
+    description: 'Latest updates on maintaining a healthy lifestyle and immunity.'
+  }
+];
+
 export const PatientDashboard: React.FC<DashboardProps> = ({ user, onNavigate, scans }) => {
   const [selectedScan, setSelectedScan] = useState<ScanResult | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -17,6 +38,9 @@ export const PatientDashboard: React.FC<DashboardProps> = ({ user, onNavigate, s
   const hydrationGoal = 2500; // ml
   const [streakDays, setStreakDays] = useState(12); // Mock streak
   const [showConfetti, setShowConfetti] = useState(false);
+
+  // Video State
+  const [currentVideo, setCurrentVideo] = useState(EDUCATIONAL_VIDEOS[0]);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -418,22 +442,57 @@ export const PatientDashboard: React.FC<DashboardProps> = ({ user, onNavigate, s
                  Public Health Education
                </h3>
              </div>
-             {/* Updated Container with Aspect Ratio and Valid Video ID */}
+             
+             {/* Interactive Video Player */}
              <div className="relative w-full aspect-video bg-slate-900 group">
                <iframe 
+                 key={currentVideo.id} // Force re-render on video change
                  className="absolute inset-0 w-full h-full"
-                 src="https://www.youtube.com/embed/NOqxTNqUV6k" 
-                 title="Health News - Good Morning America"
+                 src={`https://www.youtube.com/embed/${currentVideo.id}`}
+                 title={currentVideo.title}
                  frameBorder="0"
                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                  allowFullScreen
                ></iframe>
              </div>
-             <div className="p-5 bg-purple-50/30">
-               <h4 className="font-bold text-slate-800 text-sm mb-1">Health Insights</h4>
-               <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                 <span className="font-bold text-purple-600">Featured Segment:</span> Catch up on the latest health discussions and expert advice featured on Good Morning America.
-               </p>
+             
+             {/* Video Info & Controls */}
+             <div className="p-5">
+               <div className="mb-4">
+                 <h4 className="font-bold text-slate-900 text-sm mb-1">{currentVideo.title}</h4>
+                 <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                   <span className="font-bold text-purple-600">{currentVideo.channel}:</span> {currentVideo.description}
+                 </p>
+               </div>
+               
+               {/* Playlist */}
+               <div className="space-y-2">
+                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">More Videos</p>
+                 {EDUCATIONAL_VIDEOS.map(video => (
+                   <button 
+                     key={video.id}
+                     onClick={() => setCurrentVideo(video)}
+                     className={`w-full flex items-center gap-3 p-2 rounded-lg text-left transition-colors border ${
+                       currentVideo.id === video.id 
+                         ? 'bg-purple-50 border-purple-100' 
+                         : 'bg-white hover:bg-slate-50 border-transparent hover:border-slate-100'
+                     }`}
+                   >
+                     <div className="relative w-12 h-8 bg-slate-200 rounded overflow-hidden flex-shrink-0">
+                       <img src={`https://img.youtube.com/vi/${video.id}/default.jpg`} alt="" className="w-full h-full object-cover opacity-80" />
+                       {currentVideo.id === video.id && (
+                         <div className="absolute inset-0 bg-purple-600/20 flex items-center justify-center">
+                           <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
+                         </div>
+                       )}
+                     </div>
+                     <div className="min-w-0">
+                       <p className={`text-xs font-bold truncate ${currentVideo.id === video.id ? 'text-purple-700' : 'text-slate-700'}`}>{video.title}</p>
+                       <p className="text-[10px] text-slate-400 truncate">{video.channel}</p>
+                     </div>
+                   </button>
+                 ))}
+               </div>
              </div>
           </div>
         </div>
